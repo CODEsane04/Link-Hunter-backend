@@ -1,0 +1,25 @@
+{
+  "name": "vps",
+  "version": "1.0.0",
+  "description": "",
+  "homepage": "https://github.com/CODEsane04/Link-Hunter#readme",
+  "bugs": {
+    "url": "https://github.com/CODEsane04/Link-Hunter/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CODEsane04/Link-Hunter.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0"
+  }
+}
