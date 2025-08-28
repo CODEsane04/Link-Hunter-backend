@@ -4,7 +4,7 @@ const router = express.Router();
 
 //define the POST endpoint
 
-router.post('/get-url', (req, res) => {
+router.post('/get-url', async (req, res) => {
     // Get the image URL from the request body sent by the extension
     const { imageUrl } = req.body;
 
@@ -14,10 +14,37 @@ router.post('/get-url', (req, res) => {
 
     console.log("recieved image url : ", imageUrl);
 
+   const hfSpaceUrl = 'https://codesane-link-hunter-model.hf.space/process-image';
+
+   console.log(`Forwarding request for ${imageUrl} to Hugging Face Space...`);
+
+   try {
+        // Make a POST request to your Hugging Face Space
+        const response = await fetch(hfSpaceUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageUrl: imageUrl })
+        });
+
+        // Check if the Hugging Face Space responded with an error
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Hugging Face Space returned an error: ${response.status} - ${errorText}`);
+        }
+
+        // Get the JSON data from the Space and send it back to the extension
+        const data = await response.json();
+        res.json(data);
+   } catch (error) {
+        console.error("Error calling Hugging Face Space:", error);
+        res.status(500).json({ error: 'Failed to process image with the ML model.' });
+   }
+
     // Spawn a Python child process
     // The first argument is 'python' or 'python3'
     // The second is an array containing the script path and any arguments
-    const pythonExecutablePath = '/usr/bin/python3';
+
+    /*const pythonExecutablePath = '/usr/bin/python3';
     const Python_process = spawn(pythonExecutablePath, ['./python_scripts/find_links.py', imageUrl]);
 
     let result_data = '';
@@ -25,6 +52,7 @@ router.post('/get-url', (req, res) => {
 
     // Listen for data coming from the Python script's standard output
     //data arrives in chunks, that is why we keep adding the chunks to the result_data
+    
     Python_process.stdout.on('data', (data) => {
         result_data += data.toString();
     });
@@ -55,7 +83,7 @@ router.post('/get-url', (req, res) => {
             console.log("error parsing JSON from python script : ", e);
             return res.status(500).json({ error: 'Failed to parse results from script.' }); 
         }
-    });
+    });*/
     
 });
 
