@@ -29,8 +29,8 @@ def get_image_caption(image_url) :
     model to generate a descriptive caption.
     """
     try :
-        processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-large")
-        model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-large")
+        processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
+        model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base")
         
         # download the image from the URL
         raw_image = Image.open(requests.get(image_url, stream=True).raw).convert('RGB')
@@ -115,7 +115,7 @@ def search_youtube_links(keyword, querry, limit=10) :
                 "product_name" : items['product_name'],
                 "formatted_views" : formatted_views,
             })
-            
+
         return final_tutorials
     except Exception as e :
         print(f"Error searching Youtube: {e}", file=sys.stderr)

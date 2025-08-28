@@ -39,7 +39,7 @@ router.post('/get-url', (req, res) => {
     Python_process.on('close', (code) => {
         if (code !== 0 || error_data) {
             console.log(`Python script error : ${error_data}`);
-            res.status(500).json({error : 'failed to process the image'});
+            return res.status(500).json({error : 'failed to process the image'});
         }
 
         try {
