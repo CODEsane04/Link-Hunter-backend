@@ -3,7 +3,12 @@ import json
 import requests
 from PIL import Image
 from transformers import BlipProcessor, BlipForConditionalGeneration
+from huggingface_hub import InferenceClient
+from dotenv import load_dotenv
 from youtubesearchpython import VideosSearch
+
+# Load environment variables (Make sure HF_TOKEN is in your .env file)
+load_dotenv()
 
 def extract_product_keyword(caption) :
     """
