@@ -30,21 +30,33 @@ router.post('/get-url', (req, res) => {
     });
 
     // Listen for any errors from the Python script
-    Python_process.stderr.on('error', (error) => {
-        error_data += error.toString();
+    Python_process.stderr.on('data', (data) => {
+        error_data += data.toString();
     });
 
     //when the python script finishes, and all the data has been gathered,
     //we can then convert it into a JSON format
     Python_process.on('close', (code) => {
-        if (code !== 0 || error_data) {
+        // FIX: Only fail if the exit code is NOT 0.
+        // We ignore error_data if code is 0, because it often contains non-fatal warnings.
+        if (code !== 0) {
             console.log(`Python script error : ${error_data}`);
-            return res.status(500).json({error : 'failed to process the image'});
+            return res.status(500).json({error : 'failed to process the image', details: error_data});
         }
 
         try {
+
+            // Optional: Log warnings for debugging, but don't stop
+            if (error_data) {
+                console.log("Python warnings (non-fatal):", error_data);
+            }
+
             console.log("image processed successfully by the python script");
-            
+
+            if (!result_data) {
+                throw new Error("python script returned empty list");
+            }
+
             //parse the json script recieved from he python
             const results = JSON.parse(result_data);
             //send parse results back to extension
@@ -53,6 +65,10 @@ router.post('/get-url', (req, res) => {
 
         } catch (e) {
             console.log("error parsing JSON from python script : ", e);
+            // If result_data is empty, it means Python finished but printed nothing.
+            // In that case, the 'error_data' might actually be relevant.
+            console.log("Stderr content was:", error_data);
+            
             return res.status(500).json({ error: 'Failed to parse results from script.' }); 
         }
     });
