@@ -1,5 +1,4 @@
-transformers
-torch
-Pillow
+huggingface_hub
+python-dotenv
 requests
 youtube-search-python
