@@ -59,10 +59,14 @@ def get_search_query_from_image(image_url):
     client = InferenceClient(token=HF_TOKEN)
 
     user_message = (
-        "Identify the main object and the craft technique (e.g., crochet, woodworking, 3D printing) "
-        "shown in this image. Ignore the background. "
-        "Output ONLY a 3-5 word YouTube search query for a tutorial to make this item. "
-        "Do not write sentences."
+        "Analyze this image. Is this a DIY craft, hobby project, or handmade item that a person can make at home? "
+        "(e.g., crochet, woodworking, recipe, 3D printing, origami, art). "
+        "\n\n"
+        "Return a JSON object with this structure:\n"
+        "- If it is NOT a DIY project (e.g. real car, mountain, meme, screenshot, factory electronics): {\"valid\": false}\n"
+        "- If it IS a DIY project: {\"valid\": true, \"query\": \"3-5 word YouTube search query\"}\n"
+        "\n"
+        "Output ONLY the JSON string."
     )
 
     # Standard OpenAI-compatible message structure for Vision models
@@ -93,9 +97,15 @@ def get_search_query_from_image(image_url):
         )
         
         output_query = response.choices[0].message.content.strip()
-        clean_query = output_query.replace('"', '').replace("Search query:", "").strip()
         
-        return clean_query
+        # --- FIX: Markdown Cleanup ---
+        # LLMs often wrap code in ```json ... ``` blocks. We must remove them.
+        if output_query.startswith("```"):
+            output_query = output_query.split("```")[1].strip()
+            if output_query.startswith("json"):
+                output_query = output_query[4:].strip()
+        
+        return output_query
         
     except Exception as e:
         print(f"Error calling Qwen2-VL: {e}", file=sys.stderr)
@@ -165,17 +175,31 @@ def main():
     image_url = sys.argv[1]
 
     # Step 1: Get smart query via Base64 bypass
-    search_query = get_search_query_from_image(image_url)
+    output_query = get_search_query_from_image(image_url)
 
-    if not search_query:
+    if not output_query:
         error_message = {"error": "Could not generate a search query from the image."}
         print(json.dumps(error_message), file=sys.stderr)
         return
     
-    # Step 2: Search YouTube
-    tutorials = search_youtube_links(search_query)
+    search_query = ""
+    tutorials = []
+    
+    try :
+        data = json.loads(output_query)
 
-    # Step 3: Output JSON
+        valid = data.get("valid")
+
+        if valid is True :
+            search_query = data.get("query")
+            clean_query = output_query.replace('"', '').replace("Search query:", "").strip()
+            tutorials = search_youtube_links(search_query)
+            
+    except : 
+        json.JSONDecodeError("LLM returned bad json that couldn't be parsed")
+    
+
+    # Output JSON
     final_output = {
         "product_keyword": search_query, 
         "tutorials": tutorials
