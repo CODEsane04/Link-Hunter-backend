@@ -1,6 +1,7 @@
 import sys
 import json
 import os
+import re
 import base64
 import requests
 from huggingface_hub import InferenceClient
@@ -105,7 +106,7 @@ def get_search_query_from_image(image_url):
         response = client.chat.completions.create(
             model=MODEL_ID, 
             messages=messages, 
-            max_tokens=50,
+            max_tokens=200,
             temperature=0.2
         )
         
@@ -123,6 +124,39 @@ def get_search_query_from_image(image_url):
     except Exception as e:
         print(f"Error calling Qwen2-VL: {e}", file=sys.stderr)
         return None
+
+# ==== helper function to calculate and add scores to the links for better ranking=====
+
+def parse_time_to_years(time_text):
+    if not time_text: return 0
+    time_text = time_text.lower()
+    
+    num_match = re.search(r'(\d+)', time_text)
+    if not num_match: return 0
+    number = int(num_match.group(1))
+
+    if 'year' in time_text: return number
+    if 'month' in time_text: return number / 12
+    if 'week' in time_text: return number / 52
+    if 'day' in time_text: return number / 365
+    return 0
+
+def calculate_score(views, time_text):
+    """
+    UPDATED FORMULA: Score = (ViewsInMillions) / (1.2 ^ YearsOld)
+    Example: 
+    - 2.4M views, 0 years old -> Score = 2.4
+    - 2.4M views, 2 years old -> Score = 2.4 / (1.2^2) = 1.66
+    """
+    years = parse_time_to_years(time_text)
+    if years < 0: years = 0
+    
+    # Convert raw views to Millions (float)
+    views_in_millions = views / 1_000_000
+    
+    denominator = 1.2 ** years
+    
+    return round(views_in_millions / denominator, 3)
 
 # --- Helper Functions (Search & Format) ---
 
@@ -153,25 +187,29 @@ def search_youtube_links(query, limit=10):
             view_count_text = video.get('viewCount', {}).get('text', '0 views')
             raw_views = get_raw_view_count(view_count_text)
 
+            time_text = video.get('publishedTime', '')
+            score = calculate_score(raw_views,time_text)
+
             tutorials.append({
                 "title": video['title'],
                 "url": video['link'],
                 "product_name": query, 
-                "raw_views": raw_views
+                "raw_views": raw_views,
+                "score" : score
             })
         
-        tutorials = sorted(tutorials, key=lambda x: x['raw_views'], reverse=True)
+        tutorials = sorted(tutorials, key=lambda x: x['score'], reverse=True)
         
-        final_tutorials = []
+        """final_tutorials = []
         for video in tutorials[:limit]:
             final_tutorials.append({
                 "title": video['title'],
                 "url": video['url'],
                 "product_name": video['product_name'],
                 "formatted_views": format_view_count(video['raw_views'])
-            })
+            })"""
             
-        return final_tutorials
+        return tutorials
 
     except Exception as e:
         print(f"Error searching YouTube: {e}", file=sys.stderr)
