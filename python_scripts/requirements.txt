@@ -2,3 +2,4 @@ huggingface_hub
 python-dotenv
 requests
 youtube-search-python
+httpx==0.27.2
