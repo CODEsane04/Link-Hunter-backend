@@ -17,7 +17,7 @@ router.post('/get-url', (req, res) => {
     // Spawn a Python child process
     // The first argument is 'python' or 'python3'
     // The second is an array containing the script path and any arguments
-    const pythonExecutablePath = '/usr/bin/python3';
+    const pythonExecutablePath = 'python3';
     const Python_process = spawn(pythonExecutablePath, ['./python_scripts/find_links.py', imageUrl]);
 
     let result_data = '';
