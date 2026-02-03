@@ -58,15 +58,28 @@ def get_search_query_from_image(image_url):
 
     client = InferenceClient(token=HF_TOKEN)
 
+    # --- THE IMPROVED PROMPT ---
+    # We force the model to break down the image components BEFORE creating the query.
     user_message = (
-        "Analyze this image. Is this a DIY craft, hobby project, or handmade item that a person can make at home? "
-        "(e.g., crochet, woodworking, recipe, 3D printing, origami, art). "
+        "You are an expert DIY analyst. Analyze this image to identify the craft project. "
         "\n\n"
-        "Return a JSON object with this structure:\n"
-        "- If it is NOT a DIY project (e.g. real car, mountain, meme, screenshot, factory electronics): {\"valid\": false}\n"
-        "- If it IS a DIY project: {\"valid\": true, \"query\": \"3-5 word YouTube search query\"}\n"
+        "Step 1: Identify the **Material/Technique** (e.g., crochet, amigurumi, woodworking, resin). "
+        "Step 2: Identify the **Specific Object in Focus**. Be precise (e.g., instead of just 'flower', say 'flower pot' or 'potted plant' or instead of animal, be precide & say which animal if it is recognizable). "
+        "Step 3: Identify the **Function/Context** (e.g., keychain, plushie, wall hanging, coaster). "
+        "\n\n"
+        "Return a JSON object. "
         "\n"
-        "Output ONLY the JSON string."
+        "- If it is NOT a DIY project (real car, nature, screenshot): {\"valid\": false, \"reason\": \"...\"}\n"
+        "- If it IS a DIY project, use this exact structure:\n"
+        "{\n"
+        "  \"valid\": true,\n"
+        "  \"material\": \"...\",\n"
+        "  \"specific_object\": \"...\",\n"
+        "  \"context\": \"...\",\n"
+        "  \"query\": \"[Material] [Specific Object] [Context] tutorial\"\n"
+        "}\n"
+        "\n"
+        "Output ONLY the JSON string & tailor the query peoperly using materials - specific object - context ."
     )
 
     # Standard OpenAI-compatible message structure for Vision models
