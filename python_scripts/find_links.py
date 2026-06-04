@@ -13,7 +13,7 @@ load_dotenv()
 
 # --- Configuration ---
 # Using Qwen2.5-VL-7B-Instruct for high accuracy
-MODEL_ID = "Qwen/Qwen2.5-VL-7B-Instruct" 
+MODEL_ID = "Qwen/Qwen2.5-VL-7B-Instruct:hyperbolic" 
 HF_TOKEN = os.getenv("HF_TOKEN")
 
 def encode_image_to_base64(image_url):
