@@ -12,8 +12,8 @@ from youtubesearchpython import VideosSearch
 load_dotenv()
 
 # --- Configuration ---
-# Using Qwen2.5-VL-7B-Instruct for high accuracy
-MODEL_ID = "Qwen/Qwen2.5-VL-7B-Instruct:hyperbolic" 
+# Using Qwen/Qwen3.6-35B-A3B for high accuracy
+MODEL_ID = "Qwen/Qwen3.6-35B-A3B:featherless-ai" 
 HF_TOKEN = os.getenv("HF_TOKEN")
 
 def encode_image_to_base64(image_url):
@@ -106,7 +106,7 @@ def get_search_query_from_image(image_url):
         response = client.chat.completions.create(
             model=MODEL_ID, 
             messages=messages, 
-            max_tokens=200,
+            max_tokens=1024,
             temperature=0.2
         )
         
@@ -246,8 +246,8 @@ def main():
             clean_query = output_query.replace('"', '').replace("Search query:", "").strip()
             tutorials = search_youtube_links(search_query)
             
-    except : 
-        json.JSONDecodeError("LLM returned bad json that couldn't be parsed")
+    except Exception as e: 
+        print(f"JSON Parse Error: {e}. Raw AI Output was: {output_query}", file=sys.stderr)
     
 
     # Output JSON
