@@ -13,6 +13,8 @@ router.post('/get-url', (req, res) => {
     }
 
     console.log("recieved image url : ", imageUrl);
+    console.log("sending image url to the python scripit...");
+    
 
     // Spawn a Python child process
     // The first argument is 'python' or 'python3'
