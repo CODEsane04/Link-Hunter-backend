@@ -3,3 +3,30 @@ python-dotenv
 requests
 youtube-search-python
 httpx==0.27.2
+
+#Langchain core
+langchain
+langchain-core
+
+#openAI integration
+langchain-openai
+openai
+
+#anthropic Integration
+langchain-anthropic
+
+#google Gemini (PaLM) Integration
+langchain-google-genai
+google-generativeai
+
+#huggingface integration
+langchain-huggingface
+transformers
+huggingface-hub
+
+#environment variable management
+python-dotenv
+
+#ml utilities
+numpy
+scikit-learn
