@@ -7,14 +7,33 @@ import requests
 from huggingface_hub import InferenceClient
 from dotenv import load_dotenv
 from youtubesearchpython import VideosSearch
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import PydanticOutputParser
+from pydantic import BaseModel, Field
+from typing import Literal
 
 # Load environment variables
 load_dotenv()
 
+#langchain part -------------------------
+from langchain_google_genai import ChatGoogleGenerativeAI
+GEMINI_API_KEY = os.getenv("GOOGLE_API_KEY")
+
+# MODEL-----------------------------------------------
+model = ChatGoogleGenerativeAI(
+    model="gemma-4-31b-it",
+    temperature=0.0
+)
+
+text_model = ChatGoogleGenerativeAI(
+    model="gemini-2.5-flash-lite",
+    temperature=0.1
+)
+
+#langchain part -------------------------
+
 # --- Configuration ---
-# Using Qwen/Qwen3.6-35B-A3B for high accuracy
-MODEL_ID = "Qwen/Qwen3.6-35B-A3B:featherless-ai" 
-HF_TOKEN = os.getenv("HF_TOKEN")
 
 def encode_image_to_base64(image_url):
     """
@@ -42,10 +61,10 @@ def encode_image_to_base64(image_url):
 
 def get_search_query_from_image(image_url):
     """
-    Uses Qwen2-VL to analyze the image and generate a precise search query.
+    Uses Gemma-4-31B-it to analyze the image and generate a precise search query.
     """
-    if not HF_TOKEN:
-        error_msg = {"error": "HF_TOKEN is not found in the environment variables"}
+    if not GEMINI_API_KEY:
+        error_msg = {"error": "GEMINI_API_KEY is not found in the environment variables"}
         print(json.dumps(error_msg), file=sys.stderr)
         return None
 
@@ -57,72 +76,87 @@ def get_search_query_from_image(image_url):
         print("Warning: Failed to encode image, sending raw URL...", file=sys.stderr)
         base64_image_url = image_url
 
-    client = InferenceClient(token=HF_TOKEN)
+    # PROMPTS -----------------------------------------
 
-    # --- THE IMPROVED PROMPT ---
-    # We force the model to break down the image components BEFORE creating the query.
-    user_message = (
-        "You are an expert DIY analyst. Analyze this image to identify the craft project. "
-        "\n\n"
-        "Step 1: Identify the **Material/Technique** (e.g., crochet, amigurumi, woodworking, resin). "
-        "Step 2: Identify the **Specific Object in Focus**. Be precise (e.g., instead of just 'flower', say 'flower pot' or 'potted plant' or instead of animal, be precide & say which animal if it is recognizable). "
-        "Step 3: Identify the **Function/Context** (e.g., keychain, plushie, wall hanging, coaster). "
-        "\n\n"
-        "Return a JSON object. "
-        "\n"
-        "- If it is NOT a DIY project (real car, nature, screenshot): {\"valid\": false, \"reason\": \"...\"}\n"
-        "- If it IS a DIY project, use this exact structure:\n"
-        "{\n"
-        "  \"valid\": true,\n"
-        "  \"material\": \"...\",\n"
-        "  \"specific_object\": \"...\",\n"
-        "  \"context\": \"...\",\n"
-        "  \"query\": \"[Material] [Specific Object] [Context] tutorial\"\n"
-        "}\n"
-        "\n"
-        "Output ONLY the JSON string & tailor the query peoperly using materials - specific object - context ."
+    prompt_text = """
+        You are an expert Craft and DIY Analyst. Your objective is to meticulously analyze the provided image and deconstruct the handmade project within it. 
+
+        First, determine if the primary subject is a genuine DIY/craft project. If it is a real-life subject (e.g., a real animal, landscape), a mass-produced electronic, a digital screenshot, or AI-generated art masquerading as a physical craft, flag it as invalid and state your reasoning.
+
+        If the image features a valid DIY or craft project, extract the following attributes with high precision:
+        1. Material & Technique: Identify the core medium and the crafting method used. Look closely at textures. (Examples: Amigurumi crochet, epoxy resin casting, laser-cut woodworking, wet felting, origami, macrame).
+        2. Specific Object: Identify exactly what the item represents. Avoid generic categories. (Examples: "Monstera plant in a terracotta pot" instead of "plant"; "Red panda" instead of "animal"; "Geometric mandala" instead of "pattern").
+        3. Form Factor & Context: Determine the functional or physical format of the item. How is it meant to be used or displayed? (Examples: Keychain, stuffed plushie, drink coaster, wall tapestry, desk organizer, wearable pendant).
+
+        Rely strictly on visual evidence. If an element is ambiguous, deduce the most likely answer based on the context of the overall craft.
+        Strictly donot give conversational output, follow the format instructions
+    """
+
+
+    # SCHEMAS -----------------------------------------
+    class op_schema(BaseModel) :
+        
+        valid : bool = Field(description=" True if the object in the image is a DIY doable project, else False.")
+        object_des : str = Field(description="overall identification & description of the object (for example : 'a crochet camera keychain' or 'an origami rabbit' or 'a valentine card with paper roses' etc... )")
+        specific_object : str = Field(description="The precise subject being represented (for example :, Red panda, Monstera plant, camera, any fruit, any card, heart etc.).")
+        material : str = Field(description="The core medium and crafting method (for example :, Amigurumi crochet, epoxy resin casting).")
+        context : str = Field(description="The physical format or function (for example : keychain, plushie, coaster, wall_hanging, a custom card, greeting card, love card etc, origami model etc.).")
+
+    class final_op_schema(BaseModel) :
+        search_querry : str = Field(description="the final single line search query generated by you, using the provided data")
+
+
+
+    # MESSAGES -----------------------------------------
+
+    user_message = HumanMessage(
+        content=[
+            {
+                "type": "text", 
+                "text": prompt_text,
+            },
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": base64_image_url
+                }
+            }
+        ]
     )
 
-    # Standard OpenAI-compatible message structure for Vision models
-    messages = [
-        {
-            "role": "user",
-            "content": [
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": base64_image_url 
-                    }
-                },
-                {
-                    "type": "text", 
-                    "text": user_message
-                }
-            ]
-        }
-    ]
+    structured_model1 = model.with_structured_output(op_schema)
+    result1 = structured_model1.invoke([user_message])
+
+    search_text = f"You are an expert search query generator for finding best youtube tutorial of a given DIY object. Given the following precise structural analysis of a DIY project, create an Optimized Search Query.Use the data provided about the object & synthesize these details into a highly targeted, natural-sounding search query designed to find a step-by-step tutorial for this exact item on YouTube. Combine the elements logically into a fluid search phrase. Avoid awkward, purely robotic concatenations (e.g., instead of stitching words blindly, make it read like something a person would type, such as How to make a [Material] [Specific Object] [Form Factor]). End the phrase logically with 'tutorial' and only output a line line, just the optimized search query. here is the data : {result1.material}, {result1.object_des}, {result1.specific_object} & {result1.context}"
+
+    final_msg = HumanMessage(
+        content=[
+            {
+                "type" : "text",
+                "text" : search_text
+            }
+        ]
+    )
+
 
     try:
-        response = client.chat.completions.create(
-            model=MODEL_ID, 
-            messages=messages, 
-            max_tokens=1024,
-            temperature=0.2
-        )
         
-        output_query = response.choices[0].message.content.strip()
+        structured_text_model = text_model.with_structured_output(final_op_schema)
+        final_result = structured_text_model.invoke([final_msg])
+
+        # 1. Convert the Step 1 Pydantic object into a standard Python dictionary
+        combined_dict = result1.model_dump()
         
-        # --- FIX: Markdown Cleanup ---
-        # LLMs often wrap code in ```json ... ``` blocks. We must remove them.
-        if output_query.startswith("```"):
-            output_query = output_query.split("```")[1].strip()
-            if output_query.startswith("json"):
-                output_query = output_query[4:].strip()
-        
-        return output_query
+        # 2. Extract the query string from Step 2 using dot notation 
+        # and add it to our dictionary
+        combined_dict['search_query'] = final_result.search_querry
+
+        # The output is now a single dictionary with all 5 keys: 
+        # valid, specific_object, material, context, and search_query
+        return combined_dict
         
     except Exception as e:
-        print(f"Error calling Qwen2-VL: {e}", file=sys.stderr)
+        print(f"Error calling one of the models: {e}", file=sys.stderr)
         return None
 
 # ==== helper function to calculate and add scores to the links for better ranking=====
@@ -237,13 +271,10 @@ def main():
     tutorials = []
     
     try :
-        data = json.loads(output_query)
-
-        valid = data.get("valid")
+        valid = output_query["valid"]
 
         if valid is True :
-            search_query = data.get("query")
-            clean_query = output_query.replace('"', '').replace("Search query:", "").strip()
+            search_query = output_query["search_query"]
             tutorials = search_youtube_links(search_query)
             
     except Exception as e: 
@@ -252,7 +283,7 @@ def main():
 
     # Output JSON
     final_output = {
-        "product_keyword": search_query, 
+        "product_keyword": output_query["object_des"], 
         "tutorials": tutorials
     }
     print(json.dumps(final_output))
