@@ -30,4 +30,3 @@ python-dotenv
 #ml utilities
 numpy
 scikit-learn
-pydantic==2.10.4
