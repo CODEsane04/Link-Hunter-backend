@@ -138,7 +138,6 @@ def get_search_query_from_image(image_url):
         ]
     )
 
-
     try:
         
         structured_text_model = text_model.with_structured_output(final_op_schema)
